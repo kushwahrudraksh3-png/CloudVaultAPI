@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "apps.accounts",
     'rest_framework_simplejwt',
+    'apps.storage',
 ]
 
 MIDDLEWARE = [
@@ -145,3 +146,6 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
 }
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
