@@ -8,4 +8,5 @@ urlpatterns = [
     path("", FileListView.as_view(), name="file-list"),
     path("<int:file_id>/download/", FileDownloadView.as_view(), name="file-download"),
     path("<int:file_id>/delete/", FileDeleteView.as_view(), name="file-delete"),
+    path("<int:file_id>/", FileDetailView.as_view(),name="file-detail"),
 ]

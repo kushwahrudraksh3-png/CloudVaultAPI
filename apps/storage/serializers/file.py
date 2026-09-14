@@ -31,3 +31,16 @@ class FileListSerializer(serializers.ModelSerializer):
             "file_size",
             "uploaded_at",
         ]
+    
+
+
+class FileDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StoredFile
+        fields = [
+            "id",
+            "original_name",
+            "file_size",
+            "file",
+            "uploaded_at",
+        ]

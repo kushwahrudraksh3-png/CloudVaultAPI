@@ -120,3 +120,32 @@ class FileDeleteView(APIView):
             },
             status=status.HTTP_204_NO_CONTENT,
         )
+
+
+class FileDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, file_id):
+        try:
+            stored_file = StoredFile.objects.get(
+                id=file_id,
+                owner=request.user,
+            )
+        except StoredFile.DoesNotExist:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "File not found",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = FileDetailSerializer(stored_file)
+
+        return Response(
+            {
+                "status": "success",
+                "file": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
