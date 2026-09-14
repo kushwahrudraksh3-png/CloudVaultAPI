@@ -27,3 +27,24 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
 
         return user
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "first_name",
+            "last_name",
+            "username",
+            "email",
+        ]
+
+    def validate_email(self, value):
+        user = self.instance
+
+        if User.objects.exclude(pk=user.pk).filter(email=value).exists():
+            raise serializers.ValidationError(
+                "This email is already registered."
+            )
+
+        return value
