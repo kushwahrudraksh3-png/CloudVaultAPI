@@ -91,3 +91,32 @@ class FileDownloadView(APIView):
             as_attachment=True,
             filename=stored_file.original_name,
         )
+
+class FileDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, file_id):
+        try:
+            stored_file = StoredFile.objects.get(
+                id=file_id,
+                owner=request.user,
+            )
+        except StoredFile.DoesNotExist:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "File not found",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        stored_file.file.delete(save=False)
+        stored_file.delete()
+
+        return Response(
+            {
+                "status": "success",
+                "message": "File deleted successfully",
+            },
+            status=status.HTTP_204_NO_CONTENT,
+        )
