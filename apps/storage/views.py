@@ -4,8 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .serializers.file import FileUploadSerializer
-
+from .serializers.file import *
+from django.http import FileResponse
 
 class FileUploadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -43,4 +43,51 @@ class FileUploadView(APIView):
                 "errors": serializer.errors,
             },
             status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class FileListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        files = StoredFile.objects.filter(
+            owner=request.user
+        ).order_by("-uploaded_at")
+
+        serializer = FileListSerializer(files, many=True)
+
+        return Response(
+            {
+                "status": "success",
+                "files": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+
+
+
+class FileDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, file_id):
+        try:
+            stored_file = StoredFile.objects.get(
+                id=file_id,
+                owner=request.user,
+            )
+        except StoredFile.DoesNotExist:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "File not found",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return FileResponse(
+            stored_file.file.open("rb"),
+            as_attachment=True,
+            filename=stored_file.original_name,
         )
