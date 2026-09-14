@@ -91,3 +91,30 @@ class ProfileUpdateView(APIView):
             "status": "error",
             "errors": serializer.errors,
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+            user = request.user
+            new_password = serializer.validated_data["new_password"]
+
+            user.set_password(new_password)
+            user.save()
+
+            return Response({
+                "status": "success",
+                "message": "Password changed successfully"
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "status": "error",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
