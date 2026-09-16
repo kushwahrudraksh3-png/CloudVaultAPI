@@ -1,5 +1,9 @@
+
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from django.contrib.auth.hashers import check_password
+from django.core.cache import cache
+from apps.accounts.utils.otp import generate_password_reset_token
 
 
 User = get_user_model()
@@ -89,6 +93,113 @@ class ChangePasswordSerializer(serializers.Serializer):
                 "new_password": (
                     "New password must be different from current password."
                 )
+            })
+
+        return attrs
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        User = get_user_model()
+
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                "No account is registered with this email."
+            )
+
+        return value
+    
+
+class VerifyPasswordResetOTPSerializer(serializers.Serializer):
+
+    email = serializers.EmailField(required=True)
+
+    otp = serializers.CharField(
+        required=True,
+        min_length=6,
+        max_length=6
+    )
+
+    def validate(self, attrs):
+
+        email = attrs["email"]
+        otp = attrs["otp"]
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({
+                "email": "Invalid email or OTP."
+            })
+
+        redis_key = f"password_reset_otp:{user.id}"
+
+        otp_data = cache.get(redis_key)
+
+        if otp_data is None:
+            raise serializers.ValidationError({
+                "otp": "OTP has expired or does not exist."
+            })
+
+        if otp_data["attempts"] >= 5:
+            raise serializers.ValidationError({
+                "otp": "Maximum OTP attempts exceeded."
+            })
+
+        otp_data["attempts"] += 1
+
+        cache.set(
+            redis_key,
+            otp_data,
+            timeout=300
+        )
+
+        if not check_password(otp, otp_data["otp_hash"]):
+            raise serializers.ValidationError({
+                "otp": "Invalid OTP."
+            })
+
+        cache.delete(redis_key)
+        
+        reset_token = generate_password_reset_token(user)
+
+        attrs["user"] = user
+
+        attrs["reset_token"] = reset_token
+
+        return attrs
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+
+    email = serializers.EmailField(required=True)
+    
+    reset_token = serializers.CharField(
+        required=True,
+        write_only=True
+    )
+
+    new_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        min_length=8
+    )
+
+    confirm_password = serializers.CharField(
+        required=True,
+        write_only=True,
+        min_length=8
+    )
+
+    def validate(self, attrs):
+
+        new_password = attrs["new_password"]
+        confirm_password = attrs["confirm_password"]
+
+        if new_password != confirm_password:
+            raise serializers.ValidationError({
+                "confirm_password": "Passwords do not match."
             })
 
         return attrs
