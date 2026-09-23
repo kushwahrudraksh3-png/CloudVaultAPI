@@ -1,25 +1,21 @@
-
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from django.contrib.auth.hashers import check_password
 from django.core.cache import cache
 from apps.accounts.utils.otp import generate_password_reset_token
 
-
 User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(
-        write_only=True,
-        min_length=8
-    )
+    password = serializers.CharField(write_only=True, min_length=8)
 
     class Meta:
         model = User
         fields = [
             "username",
             "email",
+            "phone_number",
             "password",
         ]
 
@@ -47,55 +43,46 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         user = self.instance
 
         if User.objects.exclude(pk=user.pk).filter(email=value).exists():
-            raise serializers.ValidationError(
-                "This email is already registered."
-            )
+            raise serializers.ValidationError("This email is already registered.")
 
         return value
 
 
 class ChangePasswordSerializer(serializers.Serializer):
-    current_password = serializers.CharField(
-        write_only=True,
-        required=True
-    )
+    current_password = serializers.CharField(write_only=True, required=True)
 
-    new_password = serializers.CharField(
-        write_only=True,
-        required=True,
-        min_length=8
-    )
+    new_password = serializers.CharField(write_only=True, required=True, min_length=8)
 
-    confirm_password = serializers.CharField(
-        write_only=True,
-        required=True
-    )
+    confirm_password = serializers.CharField(write_only=True, required=True)
 
     def validate(self, attrs):
         user = self.context["request"].user
-    
+
         current_password = attrs["current_password"]
         new_password = attrs["new_password"]
         confirm_password = attrs["confirm_password"]
 
         if not user.check_password(current_password):
-            raise serializers.ValidationError({
-                "current_password": "Current password is incorrect."
-            })
+            raise serializers.ValidationError(
+                {"current_password": "Current password is incorrect."}
+            )
 
         if new_password != confirm_password:
-            raise serializers.ValidationError({
-                "confirm_password": "Passwords do not match."
-            })
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
 
         if current_password == new_password:
-            raise serializers.ValidationError({
-                "new_password": (
-                    "New password must be different from current password."
-                )
-            })
+            raise serializers.ValidationError(
+                {
+                    "new_password": (
+                        "New password must be different from current password."
+                    )
+                }
+            )
 
         return attrs
+
 
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
@@ -109,17 +96,13 @@ class ForgotPasswordSerializer(serializers.Serializer):
             )
 
         return value
-    
+
 
 class VerifyPasswordResetOTPSerializer(serializers.Serializer):
 
     email = serializers.EmailField(required=True)
 
-    otp = serializers.CharField(
-        required=True,
-        min_length=6,
-        max_length=6
-    )
+    otp = serializers.CharField(required=True, min_length=6, max_length=6)
 
     def validate(self, attrs):
 
@@ -129,39 +112,29 @@ class VerifyPasswordResetOTPSerializer(serializers.Serializer):
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
-            raise serializers.ValidationError({
-                "email": "Invalid email or OTP."
-            })
+            raise serializers.ValidationError({"email": "Invalid email or OTP."})
 
         redis_key = f"password_reset_otp:{user.id}"
 
         otp_data = cache.get(redis_key)
 
         if otp_data is None:
-            raise serializers.ValidationError({
-                "otp": "OTP has expired or does not exist."
-            })
+            raise serializers.ValidationError(
+                {"otp": "OTP has expired or does not exist."}
+            )
 
         if otp_data["attempts"] >= 5:
-            raise serializers.ValidationError({
-                "otp": "Maximum OTP attempts exceeded."
-            })
+            raise serializers.ValidationError({"otp": "Maximum OTP attempts exceeded."})
 
         otp_data["attempts"] += 1
 
-        cache.set(
-            redis_key,
-            otp_data,
-            timeout=300
-        )
+        cache.set(redis_key, otp_data, timeout=300)
 
         if not check_password(otp, otp_data["otp_hash"]):
-            raise serializers.ValidationError({
-                "otp": "Invalid OTP."
-            })
+            raise serializers.ValidationError({"otp": "Invalid OTP."})
 
         cache.delete(redis_key)
-        
+
         reset_token = generate_password_reset_token(user)
 
         attrs["user"] = user
@@ -174,22 +147,13 @@ class VerifyPasswordResetOTPSerializer(serializers.Serializer):
 class ResetPasswordSerializer(serializers.Serializer):
 
     email = serializers.EmailField(required=True)
-    
-    reset_token = serializers.CharField(
-        required=True,
-        write_only=True
-    )
 
-    new_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        min_length=8
-    )
+    reset_token = serializers.CharField(required=True, write_only=True)
+
+    new_password = serializers.CharField(required=True, write_only=True, min_length=8)
 
     confirm_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        min_length=8
+        required=True, write_only=True, min_length=8
     )
 
     def validate(self, attrs):
@@ -198,8 +162,24 @@ class ResetPasswordSerializer(serializers.Serializer):
         confirm_password = attrs["confirm_password"]
 
         if new_password != confirm_password:
-            raise serializers.ValidationError({
-                "confirm_password": "Passwords do not match."
-            })
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
 
         return attrs
+
+
+class LogoutSerializer(serializers.Serializer):
+
+    refresh = serializers.CharField(
+        required=True
+    )
+
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    token = serializers.CharField(required=True)
+    
+    
+class ResendEmailVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)

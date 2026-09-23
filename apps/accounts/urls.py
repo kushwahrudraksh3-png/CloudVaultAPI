@@ -18,4 +18,7 @@ urlpatterns = [
     path("auth/forgot-password/",ForgotPasswordView.as_view(),name="forgot-password"),
     path("auth/verify-reset-otp/", VerifyPasswordResetOTPView.as_view(), name="verify-rest-otp"),
     path("auth/reset-password/", ResetPasswordView.as_view(),name="reset-password"),
+    path("auth/logout/", LogoutView.as_view(), name="logout"),
+    path("auth/verify-email/",VerifyEmailView.as_view(), name="verify-email"),
+    path("auth/resend-verification/",ResendEmailVerificationView.as_view(), name="resend-verification"),
 ]

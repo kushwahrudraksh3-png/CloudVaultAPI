@@ -5,6 +5,12 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from apps.accounts.utils.otp import generate_password_reset_otp, generate_password_reset_token
 from django.core.cache import cache
+from rest_framework_simplejwt.tokens import RefreshToken
+from apps.accounts.utils.emailer import send_password_reset_otp
+from apps.accounts.utils.email_verification import generate_email_verification_token
+from apps.accounts.utils.emailer import send_email_verification_link
+from apps.accounts.serializers.auth import ResendEmailVerificationSerializer
+
 
 from .serializers.auth import *
 
@@ -25,7 +31,11 @@ class RegisterView(APIView):
 
         if serializer.is_valid():
             user = serializer.save()
+            
+            token = generate_email_verification_token(user)
 
+            send_email_verification_link(user.email, token)
+            
             return Response(
                 {
                     "status": "success",
@@ -136,11 +146,12 @@ class ForgotPasswordView(APIView):
 
             otp_data = generate_password_reset_otp(user)
 
+            send_password_reset_otp(email, otp_data["otp"])
+
             return Response({
                 "status": "success",
-                "message": "Password reset OTP generated",
+                "message": "Password reset OTP sent to your email.",
                 "email": email,
-                "otp": otp_data["otp"],
             }, status=status.HTTP_200_OK)
 
         return Response({
@@ -231,3 +242,148 @@ class ResetPasswordView(APIView):
             "status": "error",
             "errors": serializer.errors,
         }, status=status.HTTP_400_BAD_REQUEST)
+        
+
+class LogoutView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data)
+
+        if serializer.is_valid():
+            refresh_token = serializer.validated_data["refresh"]
+
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+
+                return Response({
+                    "status": "success",
+                    "message": "Logout successful.",
+                }, status=status.HTTP_200_OK)
+
+            except Exception:
+                return Response({
+                    "status": "error",
+                    "message": "Invalid or expired refresh token.",
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "status": "error",
+            "errors": serializer.errors,
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VerifyEmailView(APIView):
+    permission_classes = []
+
+    def get(self, request):
+        serializer = VerifyEmailSerializer(
+            data={"token": request.query_params.get("token")}
+        )
+
+        if serializer.is_valid():
+            token = serializer.validated_data["token"]
+
+            redis_key = f"email_verification_token:{token}"
+            token_data = cache.get(redis_key)
+
+            if token_data is None:
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Invalid or expired verification token.",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                user = User.objects.get(id=token_data["user_id"])
+            except User.DoesNotExist:
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "User does not exist.",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if user.email_verified:
+                return Response(
+                    {
+                        "status": "success",
+                        "message": "Email is already verified.",
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            user.email_verified = True
+            user.save(update_fields=["email_verified"])
+
+            cache.delete(redis_key)
+
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Email verified successfully.",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {
+                "status": "error",
+                "errors": serializer.errors,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class ResendEmailVerificationView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        serializer = ResendEmailVerificationSerializer(data=request.data)
+
+        if serializer.is_valid():
+            email = serializer.validated_data["email"]
+
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "User with this email does not exist.",
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if user.email_verified:
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Email is already verified.",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            token = generate_email_verification_token(user)
+
+            send_email_verification_link(user.email, token)
+
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Verification email sent successfully.",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {
+                "status": "error",
+                "errors": serializer.errors,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
