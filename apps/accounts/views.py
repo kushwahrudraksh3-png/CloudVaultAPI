@@ -539,3 +539,62 @@ class DeleteAccountView(APIView):
             "status": "error",
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+class DeactivateAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        serializer = DeactivateAccountSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+
+            user = request.user
+
+            user.is_active = False
+
+            user.save(update_fields=["is_active"])
+
+            return Response({
+                "status": "success",
+                "message": "Account deactivated successfully."
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "status": "error",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ReactivateAccountView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+
+        serializer = ReactivateAccountSerializer(
+            data=request.data
+        )
+
+        if serializer.is_valid():
+
+            user = serializer.validated_data["user"]
+
+            user.is_active = True
+
+            user.save(update_fields=["is_active"])
+
+            return Response({
+                "status": "success",
+                "message": "Account reactivated successfully."
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "status": "error",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+

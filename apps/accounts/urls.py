@@ -24,4 +24,6 @@ urlpatterns = [
     path("profile/change-email/", ChangeEmailView.as_view(), name="change-email"),
     path("profile/verify-email-change/", VerifyEmailChangeView.as_view(), name="verify-email-change"),
     path("profile/delete/", DeleteAccountView.as_view(), name="delete-account"),
+    path("profile/deactivate/", DeactivateAccountView.as_view(), name="deactivate-account"),
+    path("profile/reactivate/", ReactivateAccountView.as_view(), name="reactivate-account"),
 ]

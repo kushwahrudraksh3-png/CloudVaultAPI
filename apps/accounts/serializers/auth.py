@@ -220,3 +220,57 @@ class DeleteAccountSerializer(serializers.Serializer):
             )
 
         return value
+    
+    
+class DeactivateAccountSerializer(serializers.Serializer):
+    password = serializers.CharField(
+        required=True,
+        write_only=True
+    )
+
+    def validate_password(self, value):
+        user = self.context["request"].user
+
+        if not user.check_password(value):
+            raise serializers.ValidationError(
+                "Incorrect password."
+            )
+
+        return value
+    
+
+class ReactivateAccountSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+
+    password = serializers.CharField(
+        required=True,
+        write_only=True
+    )
+
+    def validate(self, attrs):
+
+        email = attrs["email"]
+        password = attrs["password"]
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                {"email": "Invalid email or password."}
+            )
+
+        if not user.check_password(password):
+            raise serializers.ValidationError(
+                {"password": "Invalid email or password."}
+            )
+
+        if user.is_active:
+            raise serializers.ValidationError(
+                {"email": "Account is already active."}
+            )
+
+        attrs["user"] = user
+
+        return attrs
+    
+
