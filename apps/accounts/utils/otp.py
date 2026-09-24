@@ -28,6 +28,8 @@ def generate_password_reset_otp(user):
         otp_data,
         timeout=OTP_EXPIRY_SECONDS,
     )
+    print("OTP REDIS KEY:", redis_key)
+    print("OTP REDIS SAVED:", cache.get(redis_key) is not None)
 
     return {
         "otp": otp,

@@ -64,3 +64,38 @@ CloudVault Team
         [email],
         fail_silently=False,
     )
+    
+    
+    
+    
+def send_email_change_verification_link(email, token):
+    subject = "Verify your new CloudVault email"
+
+    verification_link = (
+        f"http://127.0.0.1:8000/api/v1/profile/verify-email-change/?token={token}"
+    )
+
+    message = f"""
+Hello,
+
+You requested to change your CloudVault email address.
+
+Please verify your new email address by clicking the link below:
+
+{verification_link}
+
+This verification link is valid for 15 minutes.
+
+If you did not request this email change, please ignore this email.
+
+Regards,
+CloudVault Team
+"""
+
+    send_mail(
+        subject,
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [email],
+        fail_silently=False,
+    )

@@ -14,6 +14,12 @@ class CustomUser(AbstractUser):
     )
 
     email_verified = models.BooleanField(default=False)
+    
+    timezone = models.CharField(max_length=50,default="Asia/Kolkata")
+    
+    pending_email = models.EmailField(null=True,blank=True)
+    pending_email_token = models.CharField(max_length=255,null=True,blank=True)
+
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]

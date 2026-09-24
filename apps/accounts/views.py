@@ -7,8 +7,8 @@ from apps.accounts.utils.otp import generate_password_reset_otp, generate_passwo
 from django.core.cache import cache
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.accounts.utils.emailer import send_password_reset_otp
-from apps.accounts.utils.email_verification import generate_email_verification_token
-from apps.accounts.utils.emailer import send_email_verification_link
+from apps.accounts.utils.email_verification import generate_email_verification_token,generate_email_change_token
+from apps.accounts.utils.emailer import send_email_verification_link, send_email_change_verification_link
 from apps.accounts.serializers.auth import ResendEmailVerificationSerializer
 
 
@@ -71,6 +71,8 @@ class ProfileView(APIView):
                 "id": user.id,
                 "username": user.username,
                 "email": user.email,
+                "timezone": user.timezone,
+                "date_joined": user.date_joined,
             }
         })
 
@@ -98,6 +100,7 @@ class ProfileUpdateView(APIView):
                     "email": user.email,
                     "first_name": user.first_name,
                     "last_name": user.last_name,
+                    "timezone": user.timezone,
                 }
             }, status=status.HTTP_200_OK)
 
@@ -387,3 +390,152 @@ class ResendEmailVerificationView(APIView):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+
+class ChangeEmailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangeEmailSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+            user = request.user
+            new_email = serializer.validated_data["new_email"]
+
+            user.pending_email = new_email
+            user.save(update_fields=["pending_email"])
+
+            token = generate_email_change_token(
+                user,
+                new_email
+            )
+
+            send_email_change_verification_link(
+                new_email,
+                token
+            )
+
+            return Response({
+                "status": "success",
+                "message": "Email verification link sent successfully."
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "status": "error",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VerifyEmailChangeView(APIView):
+    permission_classes = []
+
+    def get(self, request):
+        token = request.query_params.get("token")
+
+        if not token:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Verification token is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        redis_key = f"email_change_token:{token}"
+        token_data = cache.get(redis_key)
+
+        if token_data is None:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Invalid or expired verification token."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(id=token_data["user_id"])
+        except User.DoesNotExist:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "User does not exist."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        pending_email = token_data["pending_email"]
+
+        # Check that this token is still for the user's current
+        # pending email request
+        if user.pending_email != pending_email:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "This verification request is no longer valid."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Make sure nobody else claimed this email meanwhile
+        if User.objects.filter(email=pending_email).exclude(pk=user.pk).exists():
+            return Response(
+                {
+                    "status": "error",
+                    "message": "This email address is already registered."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.email = pending_email
+        user.pending_email = None
+        user.email_verified = True
+
+        user.save(
+            update_fields=[
+                "email",
+                "pending_email",
+                "email_verified"
+            ]
+        )
+
+        cache.delete(redis_key)
+
+        return Response(
+            {
+                "status": "success",
+                "message": "Email address changed and verified successfully."
+            },
+            status=status.HTTP_200_OK
+        )
+        
+        
+class DeleteAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+
+        serializer = DeleteAccountSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        if serializer.is_valid():
+
+            user = request.user
+
+            user.delete()
+
+            return Response({
+                "status": "success",
+                "message": "Account deleted successfully."
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "status": "error",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)

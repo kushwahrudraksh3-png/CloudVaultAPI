@@ -36,7 +36,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "username",
-            "email",
+            "timezone",
         ]
 
     def validate_email(self, value):
@@ -183,3 +183,40 @@ class VerifyEmailSerializer(serializers.Serializer):
     
 class ResendEmailVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
+
+
+
+
+class ChangeEmailSerializer(serializers.Serializer):
+    new_email = serializers.EmailField(required=True)
+
+    def validate_new_email(self, value):
+        user = self.context["request"].user
+
+        if User.objects.filter(email=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError(
+                "This email is already registered."
+            )
+
+        if value == user.email:
+            raise serializers.ValidationError(
+                "New email must be different from current email."
+            )
+
+        return value
+    
+class DeleteAccountSerializer(serializers.Serializer):
+    password = serializers.CharField(
+        required=True,
+        write_only=True
+    )
+
+    def validate_password(self, value):
+        user = self.context["request"].user
+
+        if not user.check_password(value):
+            raise serializers.ValidationError(
+                "Incorrect password."
+            )
+
+        return value

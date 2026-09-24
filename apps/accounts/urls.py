@@ -21,4 +21,7 @@ urlpatterns = [
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/verify-email/",VerifyEmailView.as_view(), name="verify-email"),
     path("auth/resend-verification/",ResendEmailVerificationView.as_view(), name="resend-verification"),
+    path("profile/change-email/", ChangeEmailView.as_view(), name="change-email"),
+    path("profile/verify-email-change/", VerifyEmailChangeView.as_view(), name="verify-email-change"),
+    path("profile/delete/", DeleteAccountView.as_view(), name="delete-account"),
 ]
